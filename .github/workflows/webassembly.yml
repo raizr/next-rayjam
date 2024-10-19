@@ -82,6 +82,15 @@ jobs:
         name: ${{ env.PROJECT_RELEASE_PATH }}.zip
         path: ./${{ env.PROJECT_RELEASE_PATH }}.zip
 
+    - name: Upload ${{ env.PROJECT_RELEASE_PATH }} to itch.io project
+      uses: robpc/itchio-upload-action@v1
+      with:
+        path: ./${{ env.PROJECT_RELEASE_PATH }}.zip
+        project: test
+        channel: raizr
+        version: 0.1
+        api-key: ${{ secrets.ITCH_API }}
+
     - name: Upload Artifact to Release
       uses: softprops/action-gh-release@v1
       with:
