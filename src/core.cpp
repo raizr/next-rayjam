@@ -241,7 +241,7 @@ void Core::Update()
     }
     if (IsCursorOnScreen())
     {
-        GuiDrawIcon(50, GetMouseX(), GetMouseY(), 1, WHITE);
+        //GuiDrawIcon(50, GetMouseX(), GetMouseY(), 1, WHITE);
     }
     EndDrawing();
 }

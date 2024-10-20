@@ -20,7 +20,7 @@ jobs:
     
     env:
       PROJECT_NAME: ${{ github.event.repository.name }}
-      PROJECT_BUILD_PATH: ${{ github.event.repository.name }}/include ${{ github.event.repository.name }}/src
+      PROJECT_BUILD_PATH: ${{ github.event.repository.name }}/src
       PROJECT_RELEASE_PATH: ${{ github.event.repository.name }}_dev_wasm
       
     steps:
@@ -34,6 +34,11 @@ jobs:
       with:
         repository: raysan5/raylib
         path: raylib
+    - name: Checkout raygui repo
+      uses: actions/checkout@v4
+      with:
+        repository: raysan5/raygui
+        path: raygui
 
     - name: Setup emsdk
       uses: mymindstorm/setup-emsdk@v14
