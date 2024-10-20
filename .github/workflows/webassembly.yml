@@ -16,11 +16,11 @@ jobs:
   build:
     permissions:
       contents: write       # for actions/upload-release-asset to upload release asset
-    runs-on: windows-latest
+    runs-on: ubuntu-20.04
     
     env:
       PROJECT_NAME: ${{ github.event.repository.name }}
-      PROJECT_BUILD_PATH: ${{ github.event.repository.name }}\\src
+      PROJECT_BUILD_PATH: ${{ github.event.repository.name }}//src
       PROJECT_RELEASE_PATH: ${{ github.event.repository.name }}_dev_wasm
       
     steps:
@@ -34,7 +34,7 @@ jobs:
       with:
         repository: raysan5/raylib
         path: raylib
-  
+
     - name: Setup emsdk
       uses: mymindstorm/setup-emsdk@v14
       with:
@@ -49,32 +49,35 @@ jobs:
     
     - name: Setup Environment
       run: | 
+        sudo apt-get update -qq
+        sudo apt-get install -y --no-install-recommends libglfw3 libglfw3-dev libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxext-dev libxfixes-dev libwayland-dev libxkbcommon-dev
         mkdir ${{ env.PROJECT_RELEASE_PATH }}
-        dir
+        ls
+      shell: bash
    
     - name: Build raylib Library
       run: |
         cd raylib/src
         emcc -v
-        make PLATFORM=PLATFORM_WEB RAYLIB_BUILD_MODE=RELEASE RAYLIB_LIBTYPE=STATIC EMSDK_PATH="D:/a/${{ env.PROJECT_NAME }}/${{ env.PROJECT_NAME }}/emsdk-cache/emsdk-main" RAYLIB_PROJECT_RELEASE_PATH=. -B
+        make PLATFORM=PLATFORM_WEB RAYLIB_BUILD_MODE=RELEASE RAYLIB_LIBTYPE=STATIC EMSDK_PATH="/home/runner/work/${{ env.PROJECT_NAME }}/${{ env.PROJECT_NAME }}/emsdk-cache/emsdk-main" RAYLIB_PROJECT_RELEASE_PATH=. -B
 
     - name: Build Product
       run: |
         cd ${{ env.PROJECT_NAME }}/src
-        make PLATFORM=PLATFORM_WEB BUILD_MODE=RELEASE EMSDK_PATH="D:/a/${{ env.PROJECT_NAME }}/${{ env.PROJECT_NAME }}/emsdk-cache/emsdk-main" PROJECT_BUILD_PATH=. RAYLIB_SRC_PATH=../../raylib/src -B
+        make PLATFORM=PLATFORM_WEB BUILD_MODE=RELEASE EMSDK_PATH="/home/runner/work/${{ env.PROJECT_NAME }}/${{ env.PROJECT_NAME }}/emsdk-cache/emsdk-main" PROJECT_BUILD_PATH=. RAYLIB_SRC_PATH=../../raylib/src -B
   
     - name: Generate Artifacts
       run: |
-        dir ${{ env.PROJECT_BUILD_PATH }}
-        copy /Y ${{ env.PROJECT_BUILD_PATH }}\${{ env.PROJECT_NAME }}.wasm ${{ env.PROJECT_RELEASE_PATH }}\${{ env.PROJECT_NAME }}.wasm
-        copy /Y ${{ env.PROJECT_BUILD_PATH }}\${{ env.PROJECT_NAME }}.data ${{ env.PROJECT_RELEASE_PATH }}\${{ env.PROJECT_NAME }}.data
-        copy /Y ${{ env.PROJECT_BUILD_PATH }}\${{ env.PROJECT_NAME }}.js ${{ env.PROJECT_RELEASE_PATH }}\${{ env.PROJECT_NAME }}.js
-        copy /Y ${{ env.PROJECT_BUILD_PATH }}\${{ env.PROJECT_NAME }}.html ${{ env.PROJECT_RELEASE_PATH }}\index.html
-        copy /Y ${{ env.PROJECT_NAME }}\README.md ${{ env.PROJECT_RELEASE_PATH }}\README.md
-        copy /Y ${{ env.PROJECT_NAME }}\LICENSE ${{ env.PROJECT_RELEASE_PATH }}\LICENSE
-        dir ${{ env.PROJECT_RELEASE_PATH }}
-        7z a -tzip -r .\${{ env.PROJECT_RELEASE_PATH }}.zip .\${{ env.PROJECT_RELEASE_PATH }}\*
-      shell: cmd
+        ls ${{ env.PROJECT_BUILD_PATH }}
+        cp ${{ env.PROJECT_BUILD_PATH }}/${{ env.PROJECT_NAME }}.wasm ${{ env.PROJECT_RELEASE_PATH }}/${{ env.PROJECT_NAME }}.wasm
+        cp ${{ env.PROJECT_BUILD_PATH }}/${{ env.PROJECT_NAME }}.data ${{ env.PROJECT_RELEASE_PATH }}/${{ env.PROJECT_NAME }}.data
+        cp ${{ env.PROJECT_BUILD_PATH }}/${{ env.PROJECT_NAME }}.js ${{ env.PROJECT_RELEASE_PATH }}/${{ env.PROJECT_NAME }}.js
+        cp ${{ env.PROJECT_BUILD_PATH }}/${{ env.PROJECT_NAME }}.html ${{ env.PROJECT_RELEASE_PATH }}/index.html
+        cp ${{ env.PROJECT_NAME }}/README.md ${{ env.PROJECT_RELEASE_PATH }}/README.md
+        cp ${{ env.PROJECT_NAME }}/LICENSE ${{ env.PROJECT_RELEASE_PATH }}/LICENSE
+        ls ${{ env.PROJECT_RELEASE_PATH }}
+        7z a -tzip -r ./${{ env.PROJECT_RELEASE_PATH }}.zip ./${{ env.PROJECT_RELEASE_PATH }}/*
+      shell: bash
 
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4
@@ -86,8 +89,8 @@ jobs:
       uses: robpc/itchio-upload-action@v1
       with:
         path: ./${{ env.PROJECT_RELEASE_PATH }}.zip
-        project: test
-        channel: raizr
+        project: raizr/test
+        channel: html
         version: 0.1
         api-key: ${{ secrets.ITCH_API }}
 
