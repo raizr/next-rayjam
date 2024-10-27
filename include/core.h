@@ -64,6 +64,8 @@ namespace core
 
         int currentGesture = GESTURE_NONE;
         int lastGesture = GESTURE_NONE;
+        Shader postShader;
+        Texture2D imageTexture;
         Vector2 touchPosition = { 0, 0 };
         Vector2 touchRightPosition = { 0, 0 };
         Vector2 holdLast = { 0, 0 };

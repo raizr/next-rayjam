@@ -4,6 +4,7 @@
 #include <cmath>
 #include "raygui.h"
 #include "raymath.h"
+#include "resource.h"
 
 using namespace core;
 
@@ -30,9 +31,26 @@ void Core::Init()
 {
     SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_RESIZABLE);
     InitWindow(screenWidth, screenHeight, "Next Jam");
-
+    SearchAndSetResourceDir("resources");
     std::string dir = GetWorkingDirectory();
 
+    postShader = LoadShader(0, (dir + "/palette_switch.fs").c_str());
+
+    int paletteLoc = GetShaderLocation(postShader, "palette");
+    constexpr int COLORS_PER_PALETTE = 8;
+    std::array<int, 3 * 8> palette = {// AMMO-8 (GameBoy-like)
+        115, 70, 76,
+        171, 86, 117,
+        238, 106, 124,
+        52, 172, 186,
+        255, 167, 165,
+        114, 220, 187,
+        255, 224, 126,
+        255, 231, 214,
+    };
+    SetShaderValueV(postShader, paletteLoc, palette.data(), SHADER_UNIFORM_IVEC3, COLORS_PER_PALETTE);
+    Image parrots = LoadImage((dir + "/48.png").c_str());
+    imageTexture = LoadTextureFromImage(parrots);
     HideCursor();
     SetExitKey(KEY_NULL);
     SetTargetFPS(FIXED_FRAME_RATE);
@@ -91,7 +109,6 @@ double Core::GetCurrentTime() const
     return time;
 }
 
-// to support pause, and make debugging easier, we track our own delta time
 float Core::GetDeltaTime() const
 {
     if (gameState == GameState::Paused)
@@ -205,9 +222,16 @@ void Core::Update()
     float scale = MIN((float)GetScreenWidth() / gameScreenWidth, (float)GetScreenHeight() / gameScreenHeight);
     BeginTextureMode(target);
         ClearBackground(BLACK);
+        constexpr unsigned char clr = 32;
+        for (unsigned char i = 0; i < 8; i++) {
+            unsigned char t = (clr * (i + 1)) - 1;
+            DrawRectangle(0, 50 * i, GetScreenWidth(), 50, Color{ t, t, t, 255 });
+        }
+        DrawTexture(imageTexture, screenWidth / 2 - imageTexture.width / 2, screenHeight / 2 - imageTexture.height / 2 - 40, WHITE);
         //scene::SceneManager::getInstance()->Draw();
     EndTextureMode();
     BeginDrawing();
+    BeginShaderMode(postShader);
         ClearBackground(BLACK);
         DrawTexturePro(target.texture,
             Rectangle { 0.0f, 0.0f, (float)target.texture.width, (float)-target.texture.height },
@@ -243,6 +267,7 @@ void Core::Update()
     {
         GuiDrawIcon(50, GetMouseX(), GetMouseY(), 1, WHITE);
     }
+    EndShaderMode();
     EndDrawing();
 }
 
