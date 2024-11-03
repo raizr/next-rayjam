@@ -4,6 +4,9 @@
 
 namespace core
 {
+
+    #define MAX(a, b) ((a)>(b)? (a) : (b))
+    #define MIN(a, b) ((a)<(b)? (a) : (b))
     enum class GameScreen
     {
         SCREEN_LOGO = 0,
@@ -40,6 +43,7 @@ namespace core
         void Update();
         void DrawMenu();
         void DrawGUI();
+        void DrawLevelPassed();
         void DrawLoseMenu();
         void OnLose();
         bool AcceptPressed();
@@ -65,7 +69,7 @@ namespace core
         int currentGesture = GESTURE_NONE;
         int lastGesture = GESTURE_NONE;
         Shader postShader;
-        Texture2D imageTexture;
+
         Vector2 touchPosition = { 0, 0 };
         Vector2 touchRightPosition = { 0, 0 };
         Vector2 holdLast = { 0, 0 };

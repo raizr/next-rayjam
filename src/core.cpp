@@ -2,14 +2,12 @@
 
 #include <string>
 #include <cmath>
-#include "raygui.h"
 #include "raymath.h"
+#include "raygui.h"
 #include "resource.h"
+#include "scene_manager.h"
 
 using namespace core;
-
-#define MAX(a, b) ((a)>(b)? (a) : (b))
-#define MIN(a, b) ((a)<(b)? (a) : (b))
 
 Core* Core::getInstance()
 {
@@ -30,32 +28,18 @@ void Core::cleanup()
 void Core::Init()
 {
     SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_RESIZABLE);
-    InitWindow(screenWidth, screenHeight, "Next Jam");
+    InitWindow(screenWidth, screenHeight, "Next Bridge");
     SearchAndSetResourceDir("resources");
     std::string dir = GetWorkingDirectory();
-
-    postShader = LoadShader(0, (dir + "/palette_switch.fs").c_str());
-
-    int paletteLoc = GetShaderLocation(postShader, "palette");
-    constexpr int COLORS_PER_PALETTE = 8;
-    std::array<int, 3 * 8> palette = {// AMMO-8 (GameBoy-like)
-        115, 70, 76,
-        171, 86, 117,
-        238, 106, 124,
-        52, 172, 186,
-        114, 220, 187,
-        255, 167, 165,
-        255, 224, 126,
-        255, 231, 214,
-    };
-    SetShaderValueV(postShader, paletteLoc, palette.data(), SHADER_UNIFORM_IVEC3, COLORS_PER_PALETTE);
-    Image parrots = LoadImage((dir + "/48.png").c_str());
-    imageTexture = LoadTextureFromImage(parrots);
-    HideCursor();
+    GuiLoadStyle((dir + "/style.rgs").c_str());
+    Resources::LoadFonts();
+    Resources::LoadTextures();
+    //HideCursor();
     SetExitKey(KEY_NULL);
     SetTargetFPS(FIXED_FRAME_RATE);
     target = LoadRenderTexture(gameScreenWidth, gameScreenHeight);
-    SetTextureFilter(target.texture, TEXTURE_FILTER_POINT);
+    //SetTextureFilter(target.texture, TEXTURE_FILTER_POINT);
+    scene::SceneManager::getInstance()->Load();
 }
 
 
@@ -79,7 +63,7 @@ EM_JS(bool, is_touch, (), {
 bool Core::isTouch()
 {
 #if defined(PLATFORM_WEB)
-    return is_touch();
+    return false;// is_touch();
 #endif
     return false;
 }
@@ -125,16 +109,16 @@ float Core::GetDeltaTime() const
 
 Vector2 DrawCenteredText(const char* text, float textSize = 20, float yOffset = 0.5f, float xOffset = 0.5f)
 {
-    Vector2 size = MeasureTextEx(GetFontDefault(), text, textSize, textSize / 10);
-
+    float spacing = 2;
+    Vector2 size = MeasureTextEx(Resources::baseFont, text, textSize, spacing);
     Vector2 pos = { GetScreenWidth() * xOffset - size.x / 2.0f, GetScreenHeight() * yOffset - size.y / 2.0f };
-    DrawText(text, int(pos.x), int(pos.y), int(textSize), WHITE);
+    DrawTextEx(Resources::baseFont, text, pos, (float)textSize, spacing, R_YELLOW);
     return pos;
 }
 
 void Core::Update()
 {
-    if (isTouch())
+    /*if (isTouch())
     {
         lastGesture = currentGesture;
         currentGesture = GetGestureDetected();
@@ -166,7 +150,7 @@ void Core::Update()
         touchTap = (CheckCollisionPointRec(touchRightPosition, touchRight)
             || CheckCollisionPointRec(touchPosition, touchRight))
                 && ((currentGesture == GESTURE_TAP) || (currentGesture == GESTURE_HOLD));
-    }
+    }*/
 
 
     if (gameState != GameState::Paused)
@@ -179,27 +163,29 @@ void Core::Update()
         {
             tutorial = true;
             gameState = GameState::Playing;
+            scene::SceneManager::getInstance()->Load();
         }
     }
     if (gameState == GameState::Paused)
     {
         if (AcceptPressed())
         {
-            if (!tutorial)
+            /*if (!tutorial)
             {
                 gameState = GameState::Tutorial;
             }
             else
             {
-                gameState = GameState::Playing;
-            }
+            }*/
+            gameState = GameState::Playing;
         }
     }
     if (gameState == GameState::Lose)
     {
         if (AcceptPressed())
         {
-            
+            scene::SceneManager::getInstance()->Reset();
+            scene::SceneManager::getInstance()->Load();
             gameState = GameState::Playing;
         }
     }
@@ -210,28 +196,29 @@ void Core::Update()
         {
             gameState = GameState::Paused;
         }
+        if (scene::SceneManager::getInstance()->IsLevelClear())
+        {
+            gameState = GameState::ChangingLevel;
+        }
     }
+
     if (gameState == GameState::Playing)
     {
-        //scene::SceneManager::getInstance()->Update();
+        scene::SceneManager::getInstance()->Update();
     }
     if (gameState == GameState::ChangingLevel)
     {
-        //scene::SceneManager::getInstance()->Update();
+        if (AcceptPressed()) {
+            scene::SceneManager::getInstance()->NextLevel();
+            gameState = GameState::Playing;
+        }
     }
     float scale = MIN((float)GetScreenWidth() / gameScreenWidth, (float)GetScreenHeight() / gameScreenHeight);
     BeginTextureMode(target);
         ClearBackground(BLACK);
-        constexpr unsigned char clr = 32;
-        for (unsigned char i = 0; i < 8; i++) {
-            unsigned char t = (clr * (i + 1)) - 1;
-            DrawRectangle(0, 50 * i, GetScreenWidth(), 50, Color{ t, t, t, 255 });
-        }
-        DrawTexture(imageTexture, screenWidth / 2 - imageTexture.width / 2, screenHeight / 2 - imageTexture.height / 2 - 40, WHITE);
-        //scene::SceneManager::getInstance()->Draw();
+        scene::SceneManager::getInstance()->Draw();
     EndTextureMode();
     BeginDrawing();
-    BeginShaderMode(postShader);
         ClearBackground(BLACK);
         DrawTexturePro(target.texture,
             Rectangle { 0.0f, 0.0f, (float)target.texture.width, (float)-target.texture.height },
@@ -239,43 +226,28 @@ void Core::Update()
                     (GetScreenHeight() - ((float)gameScreenHeight * scale)) * 0.5f,
                     (float)gameScreenWidth* scale, (float)gameScreenHeight* scale
         }, Vector2 { 0, 0 }, 0.0f, WHITE);
-        pauseBound = { 10.0f, 10.f,
-                       100.0f, 200.0f
-        };
-        if (CheckCollisionPointRec(GetMousePosition(), pauseBound)
-            || CheckCollisionPointRec(touchPosition, pauseBound))
-        {
-            if (IsMouseButtonDown(MOUSE_BUTTON_LEFT))
-            {
-                gameState = GameState::Paused;
-            }
-        }
+
         DrawGUI();
-    if (gameState == GameState::ChangingLevel)
-    {
-        
-    }
-    if (gameState == GameState::Paused)
-    {
-        DrawMenu();
-    }
-    if (gameState == GameState::Lose)
-    {
-        DrawLoseMenu();
-    }
-    if (IsCursorOnScreen())
-    {
-        GuiDrawIcon(50, GetMouseX(), GetMouseY(), 1, WHITE);
-    }
-    EndShaderMode();
+        if (gameState == GameState::ChangingLevel)
+        {
+            DrawLevelPassed();
+        }
+        if (gameState == GameState::Paused)
+        {
+            DrawMenu();
+        }
+        if (gameState == GameState::Lose)
+        {
+            DrawLoseMenu();
+        }
     EndDrawing();
 }
 
 void Core::DrawMenu()
 {
-    DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), Color{ 0, 0, 0, 255 });
-    DrawCenteredText("Next jam", 60);
-    DrawCenteredText("press to start",30, 0.6f, 0.5f);
+    DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), R_DDBLUE);
+    DrawCenteredText("Next Bridge", 60);
+    DrawCenteredText("press to play",30, 0.6f, 0.5f);
 }
 
 void Core::DrawGUI()
@@ -290,11 +262,24 @@ void Core::DrawGUI()
             
         }
     }
+    if (GuiButton({ Rectangle { 10.0f, 10.0f, 150.0f, 50.0f } }, GuiIconText(132, "PAUSE"))) {
+        gameState = GameState::Paused;
+    }
+    if (GuiButton({ Rectangle { GetScreenWidth() - 160.0f, 10.0f, 150.0f, 50.0f }}, GuiIconText(131, "PLAY"))) {
+        scene::SceneManager::getInstance()->MoveCar();
+    }
+}
+
+void core::Core::DrawLevelPassed()
+{
+    DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), R_D_BLUE);
+    DrawCenteredText("Level complete!", 30, 0.6f, 0.5f);
+    DrawCenteredText("press to go to the NEXT Bridge", 30, 0.7f, 0.5f);
 }
 
 void Core::DrawLoseMenu()
 {
-    DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), Color{ 0, 0, 0, 128 });
+    DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), R_D_BLUE);
     DrawCenteredText("You Lose", 30, 0.6f, 0.5f);
     DrawCenteredText("press to restart", 30, 0.7f, 0.5f);
 }

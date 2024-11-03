@@ -3,11 +3,13 @@ project(NextJam VERSION 0.1)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
-set(RAYLIB_VERSION 5.0)
-add_subdirectory("../raylib" "../raylib/cmake")
-
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED true)
+set(RAYLIB_VERSION 5.5)
+add_subdirectory("../raylib" "../raylib/cmake")
+add_subdirectory("../box2d" "../box2d/cmake")
+add_subdirectory("../LDtkLoader" "../LDtkLoader/cmake")
+
 
 file(GLOB_RECURSE SOURCE_LIST
     "./include/*.h"
@@ -38,12 +40,14 @@ add_executable(NextJam
 set_target_properties(NextJam PROPERTIES LINKER_LANGUAGE CXX)
 target_link_libraries(NextJam
     raylib
+    box2d
+    LDtkLoader
 )
 
 if (${PLATFORM} STREQUAL "Web")
     set_target_properties(NextJam PROPERTIES
         SUFFIX ".html"
-        LINK_FLAGS "--preload-file ../../resources --shell-file ../../minshell.html"
+        LINK_FLAGS "--preload-file ../../src/resources --shell-file ../../src/minshell.html"
         COMPILE_FLAGS "-Wno-narrowing"
     )
 endif()

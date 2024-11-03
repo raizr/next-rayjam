@@ -34,11 +34,24 @@ jobs:
       with:
         repository: raysan5/raylib
         path: raylib
+
     - name: Checkout raygui repo
       uses: actions/checkout@v4
       with:
         repository: raysan5/raygui
         path: raygui
+
+    - name: Checkout box2d repo
+      uses: actions/checkout@v4
+      with:
+        repository: erincatto/box2d
+        path: box2d
+
+    - name: Checkout ldtk repo
+      uses: actions/checkout@v4
+      with:
+        repository: Madour/LDtkLoader
+        path: LDtkLoader
 
     - name: Setup emsdk
       uses: mymindstorm/setup-emsdk@v14
