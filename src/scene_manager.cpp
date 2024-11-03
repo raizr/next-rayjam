@@ -36,15 +36,23 @@ void SceneManager::cleanup()
 SceneManager::SceneManager()
 {
     std::string dir = GetWorkingDirectory();
-    ldtkProject.loadFromFile((dir + "/test2.ldtk"s).c_str());
+    ldtkProject.loadFromFile((dir + "/levels.ldtk"s).c_str());
 	ldtkWorld = &ldtkProject.getWorld();
+	maxLevels = static_cast<int>(ldtkWorld->allLevels().size());
+	tutorialPos = {
+		{ 512.0f, 204.0f },
+		{ 507.0f, 207.0f },
+		{ 700.0f, 59.0f }
+	};
+	for (auto i = 0; i < 3; i++) {
+		Texture2D texture = LoadTexture((dir + "/tutorial" + std::to_string(i) + ".png"s).c_str());
+		tutorials.emplace_back(texture);
+	}
 	createB2World();
 }
 
 void SceneManager::createB2World()
 {
-	//b2SetLengthUnitsPerMeter(220.0f);
-
 	b2WorldDef worldDef = b2DefaultWorldDef();
 	worldDef.gravity.y = 9.8f * 50;
 	worldId = b2CreateWorld(&worldDef);
@@ -67,6 +75,11 @@ void SceneManager::NextLevel()
     Load();
 }
 
+bool scene::SceneManager::IsLastLevel()
+{
+	return currentLevel >= maxLevels - 1;
+}
+
 void scene::SceneManager::setLevel(int level)
 {
 	currentLevel = level;
@@ -74,7 +87,14 @@ void scene::SceneManager::setLevel(int level)
 
 void scene::SceneManager::MoveCar()
 {
-	m_car.SetSpeed(5.0f);
+	m_car.SetSpeed(150.0f);
+	PlayMusicStream(Resources::effectCar);
+}
+
+void scene::SceneManager::SetTutotrialPassed()
+{
+	tutorialStep = 3;
+	tutorialPassed = true;
 }
 
 void SceneManager::Load()
@@ -82,7 +102,6 @@ void SceneManager::Load()
 	if (worldId) {
 		createB2World();
 	}
-
 	currentLdtkLevel = &ldtkWorld->getLevel("Level_" + std::to_string(currentLevel));
 
 	auto levelSize = currentLdtkLevel->size;
@@ -139,7 +158,7 @@ void SceneManager::Load()
 
 		if (entity.getName() == "Car") {
 			float m_speed = 35.0f;
-			float m_torque = 50000.0f;
+			float m_torque = 90000.0f;
 			float m_hertz = 25.0f;
 			float m_dampingRatio = 0.7f;
 			m_car.Spawn(worldId.value(), { static_cast<float>(entity.getPosition().x),
@@ -207,6 +226,7 @@ void SceneManager::Load()
 
 void SceneManager::Update()
 {
+	UpdateMusicStream(Resources::effectCar);
     float deltaTime = GetFrameTime();
     seconds += deltaTime;
 	if (worldId) {
@@ -216,6 +236,12 @@ void SceneManager::Update()
 }
 
 void scene::SceneManager::checkCollisions()
+{
+	checkNodesCollision();
+	checkCarCollision();
+}
+
+void SceneManager::checkNodesCollision()
 {
 	mousePosition = GetMousePosition();
 	float scale = MIN(core::gameScreenWidth / (float)GetScreenWidth(), core::gameScreenHeight / (float)GetScreenHeight());
@@ -228,17 +254,24 @@ void scene::SceneManager::checkCollisions()
 		{
 			focusNode = &node;
 			if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+				PlaySound(Resources::effect4);
 				if (selectedNode && focusNode != selectedNode) {
 					AddJoint(selectedNode, focusNode);
 					selectedNode = nullptr;
 					focusNode = nullptr;
-					break;
+					if (!tutorialPassed && tutorialStep == 1) {
+						tutorialStep = 2;
+					}
+					return;
 				}
 
 				selectedNode = &node;
+				if (selectedNode == &(*nodeEntities.begin()) && !tutorialPassed && tutorialStep == 0) {
+					tutorialStep = 1;
+				}
 				focusNode = nullptr;
 			}
-			break;
+			return;
 		}
 
 	}
@@ -248,10 +281,22 @@ void scene::SceneManager::checkCollisions()
 		if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
 			selectedNode = nullptr;
 			focusNode = nullptr;
+			if (!tutorialPassed && tutorialStep == 1) {
+				tutorialStep = 0;
+			}
 		}
+		/*if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+			addNode(mousePosition);
+			AddJoint(selectedNode, focusNode);
+			selectedNode = nullptr;
+			focusNode = nullptr;
+		}*/
 	}
+}
 
-	if (CheckCollisionPointRec(m_car.GetPosition(), Rectangle {
+void scene::SceneManager::checkCarCollision()
+{
+	if (CheckCollisionPointRec(m_car.GetPosition(), Rectangle{
 				passedEntity.pos.x,
 				passedEntity.pos.y,
 				passedEntity.extent.x,
@@ -259,6 +304,7 @@ void scene::SceneManager::checkCollisions()
 		}) && state != LevelState::PASSED) {
 		state = LevelState::PASSED;
 		m_car.SetSpeed(0.0f);
+		StopMusicStream(Resources::effectCar);
 	}
 
 	if (CheckCollisionPointRec(m_car.GetPosition(), Rectangle{
@@ -269,6 +315,7 @@ void scene::SceneManager::checkCollisions()
 		}) && state != LevelState::LOSE) {
 		state = LevelState::LOSE;
 		m_car.SetSpeed(0.0f);
+		StopMusicStream(Resources::effectCar);
 		core::Core::getInstance()->OnLose();
 	}
 }
@@ -301,8 +348,9 @@ void SceneManager::Draw()
 		DrawTextureRec(renderedLevelTexture,
 			{ 0, 0, (float)renderedLevelTexture.width, (float)-renderedLevelTexture.height },
 			{ 0, 0 }, WHITE);
-
-
+		if (!tutorialPassed) {
+			DrawTexture(tutorials[tutorialStep], tutorialPos[tutorialStep].x, tutorialPos[tutorialStep].y, WHITE);
+		}
 		if (selectedNode) {
 			DrawEntity(*selectedNode, R_D_BLUE);
 			DrawLineEx(Vector2 {
@@ -315,6 +363,9 @@ void SceneManager::Draw()
 		}
 		for (auto& entity : nodeEntities) {
 			DrawEntity(entity, R_DDBLUE);
+		}
+		for (auto& entity : jointBodyEntities) {
+			DrawJointBodies(entity, R_DDBLUE);
 		}
 
 		if (focusNode) {
@@ -339,15 +390,29 @@ void SceneManager::Draw()
 
 void SceneManager::DrawEntity(const Entity& entity, Color color)
 {
-    b2Vec2 p = b2Body_GetWorldPoint(entity.bodyId, b2Vec2{ -entity.extent.x / 2.0f, -entity.extent.y / 2.0f });
-    b2Rot rotation = b2Body_GetRotation(entity.bodyId);
-    float radians = b2Rot_GetAngle(rotation);
-	Vector2 ps = { p.x, p.y };
-	DrawRectanglePro(Rectangle { ps.x, ps.y, entity.extent.x, entity.extent.y }, { 0.0f, 0.0f }, RAD2DEG* radians, color);
-	p = b2Body_GetWorldPoint(entity.bodyId, b2Vec2{0.0f, 0.0f});
-	ps = { p.x, p.y };
-	DrawCircleV(ps, 2.0f, BLUE);
+	if (entity.bodyId) {
+		b2Vec2 p = b2Body_GetWorldPoint(entity.bodyId.value(), b2Vec2{-entity.extent.x / 2.0f, -entity.extent.y / 2.0f});
+		b2Rot rotation = b2Body_GetRotation(entity.bodyId.value());
+		float radians = b2Rot_GetAngle(rotation);
+		Vector2 ps = { p.x, p.y };
+		DrawRectanglePro(Rectangle { ps.x, ps.y, entity.extent.x, entity.extent.y }, { 0.0f, 0.0f }, RAD2DEG* radians, color);
+		p = b2Body_GetWorldPoint(entity.bodyId.value(), b2Vec2{0.0f, 0.0f});
+		ps = { p.x, p.y };
+		DrawCircleV(ps, 2.0f, R_GOLD);
+	}
 	DrawRectangleLines(entity.pos.x, entity.pos.y, entity.extent.x, entity.extent.y, color);
+}
+
+void scene::SceneManager::DrawJointBodies(const Entity& entity, Color color)
+{
+	b2Vec2 p = b2Body_GetWorldPoint(entity.bodyId.value(), b2Vec2{ -entity.extent.x / 2.0f, -entity.extent.y / 2.0f });
+	b2Rot rotation = b2Body_GetRotation(entity.bodyId.value());
+	float radians = b2Rot_GetAngle(rotation);
+	Vector2 ps = { p.x, p.y };
+	DrawRectanglePro(Rectangle{ ps.x, ps.y, entity.extent.x, entity.extent.y }, { 0.0f, 0.0f }, RAD2DEG * radians, color);
+	p = b2Body_GetWorldPoint(entity.bodyId.value(), b2Vec2{ 0.0f, 0.0f });
+	ps = { p.x, p.y };
+	DrawCircleV(ps, 2.0f, R_GOLD);
 }
 
 void SceneManager::DrawJoint(const Joint& joint)
@@ -363,50 +428,82 @@ void SceneManager::DrawJoint(const Joint& joint)
 
 void SceneManager::AddJoint(Entity* entityA, Entity* entityB)
 {
+	if (entityA->pos.x > entityB->pos.x) {
+		std::swap(entityA, entityB);
+	}
 	auto width = Vector2Distance(entityA->pos, entityB->pos);
-	b2Polygon box = b2MakeBox(width / 2.0f - 10.0f, 10.0f);
+	auto boxWidth = width / 2.0f - 8.0f;
+	auto boxHeight = 5.f;
+	b2Polygon box = b2MakeBox(boxWidth, boxHeight);
 	b2ShapeDef shapeDef = b2DefaultShapeDef();
-	shapeDef.density = 0.1f;
 	b2BodyDef bodyDef = b2DefaultBodyDef();
 	bodyDef.type = b2_dynamicBody;
-	bodyDef.position = { entityA->pos.x + width / 2.0f + 5.0f, entityA->pos.y + 10.0f };
+	bodyDef.position = { entityA->pos.x + width / 2.0f + entityA->extent.x / 2.0f + 2.0f, entityA->pos.y + boxHeight - entityA->extent.y + 2.0f};
+	auto angle = RAD2DEG * Vector2Angle(entityA->pos, entityB->pos);
 	bodyDef.enableSleep = false;
 	auto bodyId = b2CreateBody(worldId.value(), &bodyDef);
 	b2CreatePolygonShape(bodyId, &shapeDef, &box);
 	Entity localEntity;
-	localEntity.pos = entityA->pos;
+	localEntity.pos = { entityA->pos.x + 7.0f, entityA->pos.y };
 	localEntity.bodyId = bodyId;
-	localEntity.extent = { width, 5.0f };
+	localEntity.extent = { boxWidth * 2.0f, boxHeight * 2.0f };
 	
 	auto jointDef = b2DefaultWeldJointDef();
-	b2Vec2 pivot = { 1.0f, 0.0f };
-	jointDef.bodyIdA = entityA->bodyId;
+	b2Vec2 pivot = { 0.0f, 0.5f };
+	jointDef.bodyIdA = entityA->bodyId.value();
 	jointDef.bodyIdB = bodyId;
-	jointDef.localAnchorA = b2Body_GetLocalPoint(jointDef.bodyIdA, pivot);
+	jointDef.localAnchorA = b2Body_GetLocalPoint(jointDef.bodyIdA, {0.5f, 0.5f});
 	jointDef.localAnchorB = b2Body_GetLocalPoint(jointDef.bodyIdB, pivot);
 	jointDef.angularHertz = 20.0f;
 	jointDef.angularDampingRatio = 10.0f;
-	jointDef.linearHertz = 25.0f;
-	jointDef.linearDampingRatio = 1.0f;
+	jointDef.linearHertz = 10.0f;
+	jointDef.linearDampingRatio = 15.0f;
+	jointDef.collideConnected = true;
 	auto id = b2CreateWeldJoint(worldId.value(), &jointDef);
 	Joint joint { entityA, &localEntity, id };
 
-	pivot = { 0.0f, 0.0f };
+	pivot = { 1.0f, 0.5f };
 	jointDef.bodyIdA = bodyId;
-	jointDef.bodyIdB = entityB->bodyId;
+	jointDef.bodyIdB = entityB->bodyId.value();
 	jointDef.localAnchorA = b2Body_GetLocalPoint(jointDef.bodyIdA, pivot);
-	jointDef.localAnchorB = b2Body_GetLocalPoint(jointDef.bodyIdB, pivot);
+	jointDef.localAnchorB = b2Body_GetLocalPoint(jointDef.bodyIdB, {0.5f, 0.5f});
 	jointDef.angularHertz = 20.0f;
 	jointDef.angularDampingRatio = 10.0f;
-	jointDef.linearHertz = 25.0f;
-	jointDef.linearDampingRatio = 1.0f;
+	jointDef.linearHertz = 10.0f;
+	jointDef.linearDampingRatio = 15.0f;
+	jointDef.collideConnected = true;
 	id = b2CreateWeldJoint(worldId.value(), &jointDef);
 	Joint joint2{ &localEntity, entityB, id };
 
 	jointEntities.emplace_back(joint);
 	jointEntities.emplace_back(joint2);
-	nodeEntities.emplace_back(localEntity);
+	jointBodyEntities.emplace_back(localEntity);
 
+}
+
+void SceneManager::addNode(Vector2 position)
+{
+	Entity localEntity;
+	localEntity.extent = { 8.0f, 8.0f };
+	auto b2width = localEntity.extent.x / 2.0f;
+	auto b2height = localEntity.extent.y / 2.0f;
+
+	auto centerX = position.x + b2width;
+	auto centerY = position.y + b2height;
+
+	b2BodyDef bodyDef = b2DefaultBodyDef();
+	bodyDef.position = { centerX, centerY };
+
+	b2BodyId body = b2CreateBody(worldId.value(), &bodyDef);
+
+	b2BodyId groundId = b2CreateBody(worldId.value(), &bodyDef);
+
+	b2Polygon groundBox = b2MakeBox(b2width, b2height);
+	b2ShapeDef groundShapeDef = b2DefaultShapeDef();
+	b2CreatePolygonShape(groundId, &groundShapeDef, &groundBox);
+	localEntity.pos = position;
+	localEntity.bodyId = groundId;
+	focusNode = &nodeEntities.emplace_back(localEntity);
 }
 
 void SceneManager::Reset()

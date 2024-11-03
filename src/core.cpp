@@ -29,17 +29,20 @@ void Core::Init()
 {
     SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_RESIZABLE);
     InitWindow(screenWidth, screenHeight, "Next Bridge");
+    InitAudioDevice();
     SearchAndSetResourceDir("resources");
     std::string dir = GetWorkingDirectory();
     GuiLoadStyle((dir + "/style.rgs").c_str());
     Resources::LoadFonts();
     Resources::LoadTextures();
+    Resources::LoadMusic();
     //HideCursor();
     SetExitKey(KEY_NULL);
     SetTargetFPS(FIXED_FRAME_RATE);
     target = LoadRenderTexture(gameScreenWidth, gameScreenHeight);
     //SetTextureFilter(target.texture, TEXTURE_FILTER_POINT);
     scene::SceneManager::getInstance()->Load();
+    PlayMusicStream(Resources::music);
 }
 
 
@@ -63,7 +66,7 @@ EM_JS(bool, is_touch, (), {
 bool Core::isTouch()
 {
 #if defined(PLATFORM_WEB)
-    return false;// is_touch();
+    return is_touch();
 #endif
     return false;
 }
@@ -118,7 +121,8 @@ Vector2 DrawCenteredText(const char* text, float textSize = 20, float yOffset = 
 
 void Core::Update()
 {
-    /*if (isTouch())
+    UpdateMusicStream(Resources::music);
+    if (isTouch())
     {
         lastGesture = currentGesture;
         currentGesture = GetGestureDetected();
@@ -150,7 +154,7 @@ void Core::Update()
         touchTap = (CheckCollisionPointRec(touchRightPosition, touchRight)
             || CheckCollisionPointRec(touchPosition, touchRight))
                 && ((currentGesture == GESTURE_TAP) || (currentGesture == GESTURE_HOLD));
-    }*/
+    }
 
 
     if (gameState != GameState::Paused)
@@ -161,6 +165,7 @@ void Core::Update()
     {
         if (AcceptPressed())
         {
+            PlaySound(Resources::effect3);
             tutorial = true;
             gameState = GameState::Playing;
             scene::SceneManager::getInstance()->Load();
@@ -170,13 +175,7 @@ void Core::Update()
     {
         if (AcceptPressed())
         {
-            /*if (!tutorial)
-            {
-                gameState = GameState::Tutorial;
-            }
-            else
-            {
-            }*/
+            PlaySound(Resources::effect3);
             gameState = GameState::Playing;
         }
     }
@@ -184,6 +183,7 @@ void Core::Update()
     {
         if (AcceptPressed())
         {
+            PlaySound(Resources::effect3);
             scene::SceneManager::getInstance()->Reset();
             scene::SceneManager::getInstance()->Load();
             gameState = GameState::Playing;
@@ -209,8 +209,16 @@ void Core::Update()
     if (gameState == GameState::ChangingLevel)
     {
         if (AcceptPressed()) {
-            scene::SceneManager::getInstance()->NextLevel();
-            gameState = GameState::Playing;
+            PlaySound(Resources::effect3);
+            if (scene::SceneManager::getInstance()->IsLastLevel()) {
+                gameState = GameState::Paused;
+                scene::SceneManager::getInstance()->setLevel(-1);
+                scene::SceneManager::getInstance()->NextLevel();
+            }
+            else {
+                scene::SceneManager::getInstance()->NextLevel();
+                gameState = GameState::Playing;
+            }
         }
     }
     float scale = MIN((float)GetScreenWidth() / gameScreenWidth, (float)GetScreenHeight() / gameScreenHeight);
@@ -230,7 +238,12 @@ void Core::Update()
         DrawGUI();
         if (gameState == GameState::ChangingLevel)
         {
-            DrawLevelPassed();
+            if (scene::SceneManager::getInstance()->IsLastLevel()) {
+                DrawCredits();
+            }
+            else {
+                DrawLevelPassed();
+            }
         }
         if (gameState == GameState::Paused)
         {
@@ -264,9 +277,17 @@ void Core::DrawGUI()
     }
     if (GuiButton({ Rectangle { 10.0f, 10.0f, 150.0f, 50.0f } }, GuiIconText(132, "PAUSE"))) {
         gameState = GameState::Paused;
+        PlaySound(Resources::effect2);
+    }
+    if (GuiButton({ Rectangle { GetScreenWidth() - 310.0f, 10.0f, 150.0f, 50.0f } }, GuiIconText(77, "RESTART"))) {
+        PlaySound(Resources::effect2);
+        scene::SceneManager::getInstance()->Reset();
+        scene::SceneManager::getInstance()->Load();
     }
     if (GuiButton({ Rectangle { GetScreenWidth() - 160.0f, 10.0f, 150.0f, 50.0f }}, GuiIconText(131, "PLAY"))) {
+        PlaySound(Resources::effect);
         scene::SceneManager::getInstance()->MoveCar();
+        scene::SceneManager::getInstance()->SetTutotrialPassed();
     }
 }
 
@@ -282,6 +303,12 @@ void Core::DrawLoseMenu()
     DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), R_D_BLUE);
     DrawCenteredText("You Lose", 30, 0.6f, 0.5f);
     DrawCenteredText("press to restart", 30, 0.7f, 0.5f);
+}
+
+void core::Core::DrawCredits()
+{
+    DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), R_D_BLUE);
+    DrawCenteredText("Thanks for playing", 30, 0.6f, 0.5f);
 }
 
 void Core::OnLose()

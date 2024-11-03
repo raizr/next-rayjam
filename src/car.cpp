@@ -43,7 +43,7 @@ void Car::Spawn( b2WorldId worldId, b2Vec2 position, float scale, float hertz, f
 	b2CreatePolygonShape( m_chassisId, &shapeDef, &chassis );
 
 	shapeDef.density = 0.02f * scale;
-	shapeDef.friction = 1.5f;
+	shapeDef.friction = 2.5f;
 
 	bodyDef.position = b2Add( {25.0f -boxExtent.x / 2.0f, 0.8f * boxExtent.y }, position );
 	bodyDef.allowFastRotation = true;

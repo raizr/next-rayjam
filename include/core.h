@@ -45,6 +45,7 @@ namespace core
         void DrawGUI();
         void DrawLevelPassed();
         void DrawLoseMenu();
+        void DrawCredits();
         void OnLose();
         bool AcceptPressed();
 

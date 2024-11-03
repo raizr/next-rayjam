@@ -31,7 +31,7 @@ include_directories(
     "../raygui/src"
 )
 
-add_compile_definitions(_DEBUG)
+#add_compile_definitions(_DEBUG)
 add_compile_definitions(RAYGUI_IMPLEMENTATION)
 add_compile_definitions(RAYLIB_ASEPRITE_IMPLEMENTATION)
 add_executable(NextJam

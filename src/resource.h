@@ -83,7 +83,24 @@ struct Resources
         baseFont = LoadFontEx((dir + "/SCHABO-Condensed.otf").c_str(), 64, 0, 250);
     }
 
+    static void LoadMusic()
+    {
+        std::string dir = GetWorkingDirectory();
+        music = LoadMusicStream((dir + "/main.mp3").c_str());
+        effect = LoadSound((dir + "/effect1.mp3").c_str());
+        effect2 = LoadSound((dir + "/effect2.mp3").c_str());
+        effect3 = LoadSound((dir + "/effect3.mp3").c_str());
+        effect4 = LoadSound((dir + "/effect4.mp3").c_str());
+        effectCar = LoadMusicStream((dir + "/car.wav").c_str());
+    }
+
     inline static Texture car;
     inline static Texture wheel;
     inline static Font baseFont;
+    inline static Music music;
+    inline static Sound effect;
+    inline static Sound effect2;
+    inline static Sound effect3;
+    inline static Sound effect4;
+    inline static Music effectCar;
 };
